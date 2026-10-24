@@ -1,0 +1,10 @@
+Program
+  VariableDeclaration
+    Variable "result" [symbol=#1]
+      BinaryExpression "+" [type=real]
+        IntegerLiteral "1" [type=int]
+        RealLiteral "2.5" [type=real]
+  PrintStatement
+    TypeCheckExpression "is" [type=bool]
+      Identifier "result" [type=dynamic] [symbol=#1]
+      TypeIndicator "real"

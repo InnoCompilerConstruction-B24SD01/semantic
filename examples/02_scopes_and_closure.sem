@@ -1,0 +1,25 @@
+Program
+  VariableDeclaration
+    Variable "base" [symbol=#1]
+      IntegerLiteral "10" [type=int]
+  VariableDeclaration
+    Variable "makeAdder" [symbol=#2]
+      FunctionLiteral [type=func]
+        ParameterList
+          Parameter "amount" [symbol=#3]
+        ExpressionBody
+          FunctionLiteral [type=func]
+            ParameterList
+              Parameter "value" [symbol=#4]
+            ExpressionBody
+              BinaryExpression "+" [type=dynamic]
+                BinaryExpression "+" [type=dynamic]
+                  Identifier "value" [type=dynamic] [symbol=#4]
+                  Identifier "amount" [type=dynamic] [symbol=#3]
+                Identifier "base" [type=dynamic] [symbol=#1]
+  PrintStatement
+    CallExpression [type=dynamic]
+      CallExpression [type=dynamic]
+        Identifier "makeAdder" [type=dynamic] [symbol=#2]
+        IntegerLiteral "5" [type=int]
+      IntegerLiteral "3" [type=int]
