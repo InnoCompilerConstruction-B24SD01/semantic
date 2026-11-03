@@ -1,0 +1,44 @@
+Program
+  VariableDeclaration
+    Variable "total" [symbol=#1]
+      BinaryExpression "*" [type=int]
+        BinaryExpression "+" [type=int]
+          IntegerLiteral "5" [type=int]
+          IntegerLiteral "3" [type=int]
+        IntegerLiteral "2" [type=int]
+  VariableDeclaration
+    Variable "smaller" [symbol=#2]
+      BinaryExpression "<" [type=bool]
+        IntegerLiteral "3" [type=int]
+        IntegerLiteral "5" [type=int]
+  InfiniteLoop
+    Block "body"
+      VariableDeclaration
+        Variable "a" [symbol=#3]
+          IntegerLiteral "1" [type=int]
+      VariableDeclaration
+        Variable "total" [symbol=#4]
+          IntegerLiteral "2" [type=int]
+      ExitStatement
+  VariableDeclaration
+    Variable "answer" [symbol=#5]
+      FunctionLiteral [type=func]
+        ParameterList
+        BlockBody
+          Block
+            VariableDeclaration
+              Variable "a" [symbol=#6]
+                IntegerLiteral "1" [type=int]
+            ReturnStatement
+              IntegerLiteral "42" [type=int]
+  PrintStatement
+    CallExpression [type=dynamic]
+      Identifier "answer" [type=dynamic] [symbol=#5]
+  PrintStatement
+    Identifier "total" [type=dynamic] [symbol=#1]
+    Identifier "smaller" [type=dynamic] [symbol=#2]
+    UnaryExpression "not" [type=bool]
+      BooleanLiteral "false" [type=bool]
+    BinaryExpression "-" [type=int]
+      IntegerLiteral "10" [type=int]
+      IntegerLiteral "4" [type=int]

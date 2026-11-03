@@ -82,6 +82,48 @@ class SemanticCliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8"))
                 self.assertEqual(result.stdout.decode("utf-8"), expected)
 
+    def test_optimized_examples(self):
+        fixtures = sorted(EXAMPLES.glob("*.optimized.sem"))
+        self.assertEqual(len(fixtures), 2)
+        for source in fixtures:
+            original = source.with_name(source.name.replace(".optimized.sem", ".d"))
+            with self.subTest(source=original.name):
+                result = self.run_cli("--optimize", original)
+                self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8"))
+                self.assertEqual(result.stdout.decode("utf-8"), source.read_text(encoding="utf-8"))
+                # The rewritten tree matches the handwritten "after" program.
+                after = self.run_cli(EXAMPLES / "optimized" / original.name)
+                self.assertEqual(after.returncode, 0, after.stderr.decode("utf-8"))
+                self.assertEqual(result.stdout, after.stdout)
+
+    def test_optimizer_preserves_errors_and_dynamic_calls(self):
+        for source in (
+            "var f := func() is\n return 1\n print missing\nend\n",
+            "loop\n exit\n print true * 2\nend\n",
+        ):
+            self.source_path.write_text(source, encoding="utf-8")
+            ordinary = self.run_cli(self.source_path)
+            optimized = self.run_cli("--optimize", self.source_path)
+            self.assertEqual(ordinary.returncode, 1)
+            self.assertEqual(optimized.returncode, 1)
+            self.assertEqual(optimized.stderr, ordinary.stderr)
+            self.assertEqual(optimized.stdout, b"")
+
+        self.source_path.write_text("var f := func() => 2\nprint f() * 0\n", encoding="utf-8")
+        optimized = self.run_cli("--optimize", self.source_path)
+        self.assertEqual(optimized.returncode, 0, optimized.stderr)
+        self.assertIn(b'CallExpression', optimized.stdout)
+        self.assertIn(b'BinaryExpression "*"', optimized.stdout)
+
+    def test_all_supplied_programs_with_optimization(self):
+        for name, source in PROGRAMS.items():
+            with self.subTest(name=name):
+                self.source_path.write_text(source, encoding="utf-8")
+                result = self.run_cli("--optimize", self.source_path)
+                self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8"))
+                self.assertEqual(result.stderr, b"")
+                self.assertTrue(result.stdout.startswith(b"Program\n"))
+
     def test_name_and_context_errors_have_positions_and_no_tree(self):
         cases = [
             ("print missing\n", "1:7", "undeclared identifier 'missing'"),
@@ -130,7 +172,8 @@ class SemanticCliTests(unittest.TestCase):
         self.assertEqual(directory.returncode, 1)
         self.assertIn(b"source file", directory.stderr)
 
-        for arguments in [(), ("first.d", "second.d")]:
+        for arguments in [(), ("first.d", "second.d"), ("--optimize",),
+                          ("--unknown", "source.d")]:
             with self.subTest(arguments=arguments):
                 result = self.run_cli(*arguments)
                 self.assertEqual(result.returncode, 2)

@@ -12,9 +12,11 @@ CPPFLAGS += -Iinclude -I$(SYNTAX_DIR)/include -I$(LEXER_DIR)/include
 
 FRONTEND_OBJECTS := $(BUILD_DIR)/parser.o $(BUILD_DIR)/ast.o \
 	$(BUILD_DIR)/lexer.o $(BUILD_DIR)/token.o
-OBJECTS := $(BUILD_DIR)/main.o $(BUILD_DIR)/semantic.o $(FRONTEND_OBJECTS)
+OBJECTS := $(BUILD_DIR)/main.o $(BUILD_DIR)/semantic.o $(BUILD_DIR)/optimizer.o $(FRONTEND_OBJECTS)
 TEST_OBJECTS := $(BUILD_DIR)/semantic_tests.o $(BUILD_DIR)/semantic.o \
 	$(FRONTEND_OBJECTS)
+OPTIMIZER_TEST_OBJECTS := $(BUILD_DIR)/optimizer_tests.o $(BUILD_DIR)/optimizer.o \
+	$(BUILD_DIR)/semantic.o $(FRONTEND_OBJECTS)
 
 .PHONY: all test clean docs
 all: dsemantic
@@ -25,10 +27,16 @@ dsemantic: $(OBJECTS)
 $(BUILD_DIR)/semantic_tests: $(TEST_OBJECTS)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
+$(BUILD_DIR)/optimizer_tests: $(OPTIMIZER_TEST_OBJECTS)
+	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
 $(BUILD_DIR)/%.o: src/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD_DIR)/semantic_tests.o: tests/semantic_tests.cpp | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+$(BUILD_DIR)/optimizer_tests.o: tests/optimizer_tests.cpp | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD_DIR)/parser.o: $(SYNTAX_DIR)/src/parser.cpp | $(BUILD_DIR)
@@ -46,8 +54,9 @@ $(BUILD_DIR)/token.o: $(LEXER_DIR)/src/token.cpp | $(BUILD_DIR)
 $(BUILD_DIR):
 	mkdir -p $@
 
-test: dsemantic $(BUILD_DIR)/semantic_tests
+test: dsemantic $(BUILD_DIR)/semantic_tests $(BUILD_DIR)/optimizer_tests
 	./$(BUILD_DIR)/semantic_tests
+	./$(BUILD_DIR)/optimizer_tests
 	$(PYTHON) tests/test_integration.py ./dsemantic
 
 docs:
@@ -56,4 +65,4 @@ docs:
 clean:
 	$(RM) -r $(BUILD_DIR) dsemantic
 
--include $(OBJECTS:.o=.d) $(BUILD_DIR)/semantic_tests.d
+-include $(OBJECTS:.o=.d) $(BUILD_DIR)/semantic_tests.d $(BUILD_DIR)/optimizer_tests.d

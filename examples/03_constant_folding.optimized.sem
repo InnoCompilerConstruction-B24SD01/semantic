@@ -1,0 +1,35 @@
+Program
+  VariableDeclaration
+    Variable "total" [symbol=#1]
+      IntegerLiteral "16" [type=int]
+  VariableDeclaration
+    Variable "smaller" [symbol=#2]
+      BooleanLiteral "true" [type=bool]
+  InfiniteLoop
+    Block "body"
+      VariableDeclaration
+        Variable "a" [symbol=#3]
+          IntegerLiteral "1" [type=int]
+      VariableDeclaration
+        Variable "total" [symbol=#4]
+          IntegerLiteral "2" [type=int]
+      ExitStatement
+  VariableDeclaration
+    Variable "answer" [symbol=#5]
+      FunctionLiteral [type=func]
+        ParameterList
+        BlockBody
+          Block
+            VariableDeclaration
+              Variable "a" [symbol=#6]
+                IntegerLiteral "1" [type=int]
+            ReturnStatement
+              IntegerLiteral "42" [type=int]
+  PrintStatement
+    CallExpression [type=dynamic]
+      Identifier "answer" [type=dynamic] [symbol=#5]
+  PrintStatement
+    Identifier "total" [type=dynamic] [symbol=#1]
+    Identifier "smaller" [type=dynamic] [symbol=#2]
+    BooleanLiteral "true" [type=bool]
+    IntegerLiteral "6" [type=int]

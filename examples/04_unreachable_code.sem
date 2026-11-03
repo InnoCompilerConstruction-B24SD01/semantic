@@ -1,0 +1,25 @@
+Program
+  VariableDeclaration
+    Variable "answer" [symbol=#1]
+      FunctionLiteral [type=func]
+        ParameterList
+        BlockBody
+          Block
+            PrintStatement
+              StringLiteral "'before return'" [type=string]
+            ReturnStatement
+              IntegerLiteral "42" [type=int]
+            PrintStatement
+              StringLiteral "'after return'" [type=string]
+  PrintStatement
+    CallExpression [type=dynamic]
+      Identifier "answer" [type=dynamic] [symbol=#1]
+  InfiniteLoop
+    Block "body"
+      PrintStatement
+        StringLiteral "'before exit'" [type=string]
+      ExitStatement
+      PrintStatement
+        StringLiteral "'after exit'" [type=string]
+  PrintStatement
+    StringLiteral "'done'" [type=string]

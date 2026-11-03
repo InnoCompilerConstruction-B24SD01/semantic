@@ -1,0 +1,35 @@
+Program
+  VariableDeclaration
+    Variable "sum_to" [symbol=#1]
+      FunctionLiteral [type=func]
+        ParameterList
+          Parameter "limit" [symbol=#2]
+        BlockBody
+          Block
+            VariableDeclaration
+              Variable "total" [symbol=#3]
+                IntegerLiteral "0" [type=int]
+            VariableDeclaration
+              Variable "i" [symbol=#4]
+                IntegerLiteral "1" [type=int]
+            WhileLoop
+              BinaryExpression "<=" [type=bool]
+                Identifier "i" [type=dynamic] [symbol=#4]
+                Identifier "limit" [type=dynamic] [symbol=#2]
+              Block "body"
+                Assignment
+                  Identifier "total" [type=dynamic] [symbol=#3]
+                  BinaryExpression "+" [type=dynamic]
+                    Identifier "total" [type=dynamic] [symbol=#3]
+                    Identifier "i" [type=dynamic] [symbol=#4]
+                Assignment
+                  Identifier "i" [type=dynamic] [symbol=#4]
+                  BinaryExpression "+" [type=dynamic]
+                    Identifier "i" [type=dynamic] [symbol=#4]
+                    IntegerLiteral "1" [type=int]
+            ReturnStatement
+              Identifier "total" [type=dynamic] [symbol=#3]
+  PrintStatement
+    CallExpression [type=dynamic]
+      Identifier "sum_to" [type=dynamic] [symbol=#1]
+      IntegerLiteral "5" [type=int]

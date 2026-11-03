@@ -1,153 +1,227 @@
-# Project D semantic analyzer
+# Примеры оптимизаций и ошибок
 
-A C++17 semantic analyzer for **Project D — Dynamic Language**. It reuses the
-sibling lexer and parser, validates the resulting AST, resolves every identifier
-to a declaration, and prints an annotated syntax tree (AAST).
+## 1. Свёртка констант
 
-The implementation follows `../Project D.pdf` and the tree-walk approach from
-`../2026 CC BS3 07 Semantic Analysis.pdf`.
+До — [03_constant_folding.d](examples/03_constant_folding.d):
 
-Подробное русскоязычное руководство: [PDF](docs/semantic_analyzer_ru.pdf)
-([редактируемый HTML](docs/semantic_analyzer_ru.html)).
+```text
+var total := (5 + 3) * 2
+var smaller := 3 < 5
 
-## Build, run, and test
+loop
+    var a := 1
+    var total := 2
+    exit
+end
 
-Run commands from this directory:
+var answer := func() is
+    var a := 1
+    return 42
+end
+print answer()
+
+print total, smaller, not false, 10 - 4
+```
+
+После — [optimized/03_constant_folding.d](examples/optimized/03_constant_folding.d):
+
+```text
+var total := 16
+var smaller := true
+
+loop
+    var a := 1
+    var total := 2
+    exit
+end
+
+var answer := func() is
+    var a := 1
+    return 42
+end
+print answer()
+
+print total, smaller, true, 6
+```
+
+Оптимизатор заменяет выражения из констант готовыми литералами:
+`(5 + 3) * 2` → `16`, `3 < 5` → `true`, `not false` → `true`, `10 - 4` → `6`.
+Имена `total` и `smaller` в `print` сохраняются.
+
+Реализация — [src/optimizer.cpp](src/optimizer.cpp):
+
+- `fold_constants()`, строка 72 — проверяет операнды и сворачивает операции над константами.
+- `arithmetic()`, строка 42 — вычисляет целочисленные `+`, `-`, `*` с защитой от переполнения.
+- `replace_literal()`, строка 31 — заменяет узел операции литералом и удаляет его дочерние узлы.
+
+Показать дерево до оптимизации (команда работает из любой папки):
 
 ```sh
-cd /home/gabdullinx/Inbox/IU/compilers/semantic
-make
-./dsemantic examples/01_types_and_bindings.d
-make test
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/03_constant_folding.d
 ```
 
-Analyze another Project D program with:
+Показать дерево после оптимизации:
 
 ```sh
-./dsemantic path/to/program.d
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic --optimize /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/03_constant_folding.d
 ```
 
-On success the CLI prints an AAST. For example, `var x := 1 + 2.5` contains:
+Вместо узлов операций появятся `IntegerLiteral` и `BooleanLiteral`.
+Команда выводит дерево программы; исходный код выше показывает смысл преобразования.
+
+## 2. Удаление недостижимого кода
+
+До — [04_unreachable_code.d](examples/04_unreachable_code.d):
 
 ```text
-Variable "x" [symbol=#1]
-  BinaryExpression "+" [type=real]
-    IntegerLiteral "1" [type=int]
-    RealLiteral "2.5" [type=real]
+var answer := func() is
+    print 'before return'
+    return 42
+    print 'after return'
+end
+print answer()
+
+loop
+    print 'before exit'
+    exit
+    print 'after exit'
+end
+print 'done'
 ```
 
-`symbol=#1` links declarations and uses. `type=dynamic` means that the exact
-runtime type cannot be known soundly at this stage—not that analysis failed.
-
-Exit status is `0` on success, `1` for a lexical, syntax, semantic, or file I/O
-error, and `2` for an invalid command line. Errors go to stderr and invalid input
-produces no partial AAST:
+После — [optimized/04_unreachable_code.d](examples/optimized/04_unreachable_code.d):
 
 ```text
-program.d: semantic error at 3:7: use of undeclared identifier 'value'
+var answer := func() is
+    print 'before return'
+    return 42
+end
+print answer()
+
+loop
+    print 'before exit'
+    exit
+end
+print 'done'
 ```
 
-Use `make clean` to remove build products. Use `make docs` to rebuild the PDF.
+После `return` функция завершается, поэтому `print 'after return'` недостижим.
+После `exit` выполнение выходит из цикла, поэтому `print 'after exit'` тоже
+недостижим. Эти команды удаляются из дерева. Вызов `answer()` и команда
+`print 'done'` остаются: они находятся за пределами соответствующих блоков.
 
-## What is checked
-
-The analyzer performs checks that are statically sound for this dynamic language:
-
-- every identifier is declared before use and is linked to its declaration;
-- one name may be declared only once in a scope; nested scopes may shadow it;
-- parameters and function-top-level locals share one function scope;
-- loop variables exist only inside their loop bodies;
-- closures may capture visible variables from enclosing scopes;
-- `return` is accepted only within a function;
-- `exit` is accepted only within a loop of the same function;
-- named tuple elements and function parameters must be unique;
-- tuple positions are one-based;
-- literal-only/operator expressions receive exact static type annotations;
-- conditions, ranges, and operators are rejected when their known types make the
-  operation impossible.
-
-Project D variables can change type after assignment. An identifier therefore has
-the conservative static type `dynamic`, even if its declaration has a literal
-initializer. Operations involving `dynamic` values are intentionally deferred to
-the future interpreter. This avoids rejecting valid programs such as:
-
-```text
-var value := 1
-value := "now a string"
-print value
-```
-
-The analyzer does not execute programs, evaluate runtime values, prove that every
-control-flow path returns, or validate a dynamic call's argument count.
-
-## Scopes
-
-The program owns the outer scope. Each `if` branch and loop body owns a nested
-scope. A function creates a scope containing its parameters and top-level locals;
-nested statements create further scopes. Lookup walks from the innermost scope to
-the program scope, which implements shadowing and closure capture.
-
-A declaration becomes active at its declaration point, before its initializer is
-analyzed. This supports recursive function values:
-
-```text
-var factorial := func(n) => factorial(n - 1)
-```
-
-## Layout
-
-```text
-include/dlang/semantic.hpp  Public semantic model, diagnostics, analyzer, printer
-src/semantic.cpp            Scope walk, checks, type deduction, AAST printer
-src/main.cpp                Complete source -> tokens -> AST -> AAST CLI
-tests/semantic_tests.cpp    Semantic API and rule unit tests
-tests/test_integration.py   Real CLI and all 15 supplied-program tests
-examples/                   Valid golden AASTs and one invalid source
-docs/                       Russian PDF, HTML source, and PDF build script
-Makefile                    Build, test, documentation, and clean targets
-```
-
-The Makefile compiles the existing front end directly from:
-
-```text
-../lexer/src/{lexer,token}.cpp
-../syntax/src/{parser,ast}.cpp
-```
-
-Nothing is copied or forked, so the semantic stage uses exactly the lexer, parser,
-tokens, and AST already present in this workspace.
-
-## Library API
-
-```cpp
-dlang::Lexer lexer(source, dlang::NewlineMode::Emit);
-dlang::Parser parser(lexer.tokenize());
-dlang::AstNode ast = parser.parse();
-dlang::SemanticModel model = dlang::SemanticAnalyzer().analyze(ast);
-```
-
-`SemanticModel::root` is the decorated tree. `SemanticModel::symbols` is the symbol
-table with stable one-based IDs, declaration kind and position, and scope depth.
-`SemanticError` exposes one-based `line()` and `column()` accessors.
-
-## Tests and examples
-
-`make test` runs both layers:
-
-1. Twelve C++ unit-test groups cover bindings, declaration order, shadowing,
-   closures, duplicates, control-flow context, tuple rules, type deductions,
-   errors, stable output, and the public API.
-2. Python integration tests launch `dsemantic`, check all 15 supplied Project D
-   programs, compare golden AAST files, validate diagnostics and exit statuses,
-   and confirm that lexical and syntax errors remain distinguishable.
-
-Exact example comparison:
+Показать дерево до оптимизации:
 
 ```sh
-./dsemantic examples/02_scopes_and_closure.d |
-    diff -u examples/02_scopes_and_closure.sem -
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/04_unreachable_code.d
 ```
 
-The tuple snippet in `Project D.pdf` uses undeclared placeholder identifiers `c`
-and `d`; a semantic analyzer correctly rejects that isolated snippet unless those
-variables are declared first. The 15 complete course programs are all accepted.
+Показать дерево после оптимизации:
+
+```sh
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic --optimize /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/04_unreachable_code.d
+```
+
+Во втором выводе исчезнут узлы печати `after return` и `after exit`.
+
+Реализация — `optimize_node()` в [src/optimizer.cpp](src/optimizer.cpp), строка 123.
+При обнаружении прямого `ReturnStatement` или `ExitStatement` внутри `Block`
+вызов `node.children.resize(i + 1)` на строке 131 удаляет все следующие команды
+этого блока. Команды внешнего блока не затрагиваются.
+
+Обе оптимизации запускает `Optimizer::optimize()` в том же файле, строка 141:
+сначала проверяет всю программу через `SemanticAnalyzer`, затем копирует AST
+и вызывает `optimize_node()`. Обход идёт от детей к родителю, поэтому вложенные
+константные выражения сворачиваются последовательно.
+
+## 3. Ошибка: необъявленная переменная
+
+[invalid_undeclared.d](examples/invalid_undeclared.d):
+
+```text
+var known := 1
+print unknown
+```
+
+Объявлена переменная `known`, но в `print` используется другое имя — `unknown`.
+Анализатор не находит его объявления.
+
+Запуск:
+
+```sh
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/invalid_undeclared.d
+```
+
+Диагностика после пути к файлу:
+
+```text
+semantic error at 2:7: use of undeclared identifier 'unknown'
+```
+
+Код завершения — `1`; дерево не выводится.
+
+## 4. Ошибка: переменная вне области видимости
+
+[invalid_scope.d](examples/invalid_scope.d):
+
+```text
+var calculate := func() is
+    var total := 10
+    return total
+end
+print total
+```
+
+`total` объявлена внутри функции `calculate`. В `return total` она доступна,
+но в `print total` после функции — уже нет.
+
+Запуск:
+
+```sh
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/invalid_scope.d
+```
+
+Диагностика после пути к файлу:
+
+```text
+semantic error at 5:7: use of undeclared identifier 'total'
+```
+
+Код завершения — `1`; дерево не выводится. С оптимизациями ошибка сохраняется,
+потому что вся программа проверяется до изменения AST:
+
+```sh
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic --optimize /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/invalid_scope.d
+```
+
+## 5. Корректная программа: сумма чисел
+
+[05_sum_to.d](examples/05_sum_to.d):
+
+```text
+var sum_to := func(limit) is
+    var total := 0
+    var i := 1
+    while i <= limit loop
+        total := total + i
+        i := i + 1
+    end
+    return total
+end
+
+print sum_to(5)
+```
+
+Функция `sum_to` суммирует целые числа от `1` до `limit` включительно.
+Для вызова `sum_to(5)` сумма равна `15`. Пример демонстрирует параметр функции,
+локальные переменные, цикл `while`, присваивание, `return` и вызов функции.
+Все имена объявлены до использования, а `return` находится внутри функции.
+
+Полная команда запуска из любой папки:
+
+```sh
+/Users/ivan-filatov/vscode_projects/mage_arena/semantic/dsemantic /Users/ivan-filatov/vscode_projects/mage_arena/semantic/examples/05_sum_to.d
+```
+
+Ожидается код завершения `0` и дерево программы с типами и ID объявлений.
+Анализатор не выполняет программу, поэтому число `15` не печатается.
